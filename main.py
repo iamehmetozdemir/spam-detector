@@ -5,9 +5,10 @@ import nltk
 import pandas as pd
 from nltk.corpus import stopwords
 from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.linear_model import LogisticRegression
+from sklearn.pipeline import FeatureUnion
 from sklearn.metrics import classification_report
 from sklearn.model_selection import train_test_split
-from sklearn.naive_bayes import MultinomialNB
 
 BASE_DIR = Path(__file__).parent
 
@@ -34,18 +35,25 @@ df_tr['lang'] = 'TR'
 # 4. Birleştirme
 df_combined = pd.concat([df_en, df_tr], ignore_index=True)
 df_combined.dropna(inplace=True)
+# Birebir aynı metinler train/test'e bölünürse sonuç şişer, o yüzden tekrarları atıyoruz
+df_combined.drop_duplicates(subset='text', inplace=True)
 
 # 5. Feature extraction & train/test split
 X = df_combined['text']
 y = df_combined['spam']
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
-vectorizer = TfidfVectorizer(stop_words=combined_stop_words)
+# Kelime (1-2'li) + karakter (2-5'li) n-gram TF-IDF. Karakter n-gram'ları Türkçe gibi
+# ek alan dillerde ve yazım hatalı spam metinlerinde (ör. "kazandiniz") işe yarıyor.
+vectorizer = FeatureUnion([
+    ('word', TfidfVectorizer(stop_words=combined_stop_words, ngram_range=(1, 2), min_df=2, sublinear_tf=True)),
+    ('char', TfidfVectorizer(analyzer='char_wb', ngram_range=(2, 5), min_df=3, sublinear_tf=True, max_features=300000)),
+])
 X_train_tfidf = vectorizer.fit_transform(X_train)
 X_test_tfidf = vectorizer.transform(X_test)
 
 # 6. Model eğitimi
-model = MultinomialNB()
+model = LogisticRegression(C=10, class_weight='balanced', max_iter=2000)
 model.fit(X_train_tfidf, y_train)
 
 # 7. Confidence score (predict_proba) ve threshold metrikleri

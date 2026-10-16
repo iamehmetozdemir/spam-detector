@@ -8,9 +8,9 @@
 
 ## English
 
-A small spam classifier that works on both **Turkish** and **English** text. I merged an English e-mail dataset with a Turkish SMS dataset, trained a TF-IDF + Multinomial Naive Bayes model on it, and wrapped it in a FastAPI endpoint with a simple Streamlit page on top.
+A small spam classifier that works on both **Turkish** and **English** text. I merged an English e-mail dataset with a Turkish SMS dataset, trained a TF-IDF + Logistic Regression model on it, and wrapped it in a FastAPI endpoint with a simple Streamlit page on top.
 
-It started as a learning project for text classification, so the model is intentionally simple. The interesting part for me was seeing how differently it behaves on the two languages (see [Results](#results)).
+It started as a learning project for text classification, so the model is intentionally simple. I first used Naive Bayes, saw it do badly on English e-mails (54 % spam recall), and switched to a linear model with word + character n-grams, which fixed most of it (see [Results](#results)).
 
 ### Files
 
@@ -33,7 +33,7 @@ python -m venv .venv
 pip install -r requirements.txt
 ```
 
-The included `.pkl` files were saved with scikit-learn 1.8.0. If you get a version warning, just retrain.
+The included `.pkl` files were saved with scikit-learn 1.8.0 (the vectorizer file is ~7 MB because of the character n-grams). If you get a version warning, just retrain.
 
 ### Train
 
@@ -43,7 +43,9 @@ Put `emails.csv` in the project folder, then:
 python main.py
 ```
 
-It downloads the NLTK stop-word lists (English + Turkish), trains on an 80/20 split (`random_state=42`) and overwrites the two `*_bilingual.pkl` files.
+It downloads the NLTK stop-word lists (English + Turkish), removes duplicate texts, trains on an 80/20 split (`random_state=42`) and overwrites the two `*_bilingual.pkl` files. Training takes well under a minute on a normal laptop, no GPU needed.
+
+The model is Logistic Regression (`C=10`, balanced class weights) on TF-IDF features: word 1–2-grams plus character 2–5-grams. The character n-grams help with Turkish word endings and misspelled spam words.
 
 ### Run the API
 
@@ -65,11 +67,11 @@ curl -X POST http://127.0.0.1:8000/predict \
 {
   "prediction": "Spam",
   "email_text": "Congratulations! You won a free prize. Click here to claim now!",
-  "confidence": 53.58
+  "confidence": 81.34
 }
 ```
 
-`confidence` is the model's probability (in %) for the predicted class. Note the 53 % here: the model leans spam but isn't sure, which ties into the English results below.
+`confidence` is the model's probability (in %) for the predicted class.
 
 ### Run the UI
 
@@ -81,30 +83,37 @@ streamlit run frontend.py
 
 ### Results
 
-Hold-out set: 2,096 messages (20 % of the merged data). A message counts as spam when `P(spam) >= threshold`.
+Hold-out set: 2,087 messages (20 % of the merged data after removing 44 duplicate texts; 791 spam). A message counts as spam when `P(spam) >= threshold`.
 
 **Overall, by threshold**
 
 | Threshold | Accuracy | Spam precision | Spam recall | Spam F1 |
 |-----------|----------|----------------|-------------|---------|
-| 0.30 | 0.92 | 0.90 | 0.89 | 0.89 |
-| 0.50 | 0.93 | 0.98 | 0.83 | 0.90 |
-| 0.70 | 0.92 | 0.99 | 0.78 | 0.87 |
-| 0.85 | 0.90 | 1.00 | 0.73 | 0.85 |
+| 0.30 | 0.997 | 0.993 | 1.000 | 0.996 |
+| 0.50 | 0.998 | 0.999 | 0.996 | 0.998 |
+| 0.70 | 0.994 | 1.000 | 0.984 | 0.992 |
+| 0.85 | 0.985 | 1.000 | 0.961 | 0.980 |
 
 **By language (threshold 0.5, what the API uses by default)**
 
 | Language | Test messages | Accuracy | Spam precision | Spam recall | Spam F1 |
 |----------|---------------|----------|----------------|-------------|---------|
-| Turkish (SMS) | 919 | 0.98 | 0.97 | 1.00 | 0.98 |
-| English (e-mail) | 1,177 | 0.89 | 1.00 | 0.54 | 0.70 |
+| Turkish (SMS) | 947 | 0.999 | 0.998 | 1.000 | 0.999 |
+| English (e-mail) | 1,140 | 0.997 | 1.000 | 0.989 | 0.995 |
+
+**Naive Bayes vs. Logistic Regression** (my first model vs. the current one, same split idea, before/after deduplication)
+
+| | Overall accuracy | English spam recall |
+|---|---|---|
+| TF-IDF + Naive Bayes (first version) | 0.93 | 0.54 |
+| TF-IDF (word + char n-grams) + Logistic Regression | 0.998 | 0.989 |
 
 ### Limitations
 
-- **English spam recall is low (0.54).** The model almost never flags a good English e-mail as spam, but it misses almost half of the real spam. Part of the reason is class imbalance (only ~24 % of the English e-mails are spam) and that e-mails are long and varied. Lowering the threshold would help recall.
-- **The two datasets are very different.** Short Turkish SMS are much easier than long English e-mails, so the headline accuracy flatters the model. The per-language table is the more honest number.
-- **Domain mismatch.** An English *SMS* or a Turkish *e-mail* is outside what the model was trained on, so expect worse results there.
-- Naive Bayes + TF-IDF ignores word order and context and the training data is static, so new scam styles won't be recognised.
+- **The scores are probably too good to be true in practice.** ~99.8 % on a random split mostly says these datasets are easy and have recognisable patterns (for example the English e-mails come from one source and have a very particular style). Don't expect that number on messages from somewhere else.
+- **Domain mismatch.** An English *SMS* or a Turkish *e-mail* is outside what the model was trained on, so expect worse results there. I haven't measured it.
+- **Confidence is not always high.** The English example above only gets 81 %, so treat `confidence` as a rough signal.
+- TF-IDF ignores word meaning and the training data is static, so new scam styles won't be recognised.
 
 ### Ideas for later
 
@@ -123,9 +132,9 @@ Both belong to their authors, please check the licenses on the Kaggle pages. The
 
 ## Türkçe
 
-Hem **Türkçe** hem **İngilizce** metinlerde çalışan küçük bir spam sınıflandırıcı. İngilizce e-posta veri setiyle Türkçe SMS veri setini birleştirip TF-IDF + Multinomial Naive Bayes modeli eğittim; üstüne bir FastAPI uç noktası ve basit bir Streamlit sayfası ekledim.
+Hem **Türkçe** hem **İngilizce** metinlerde çalışan küçük bir spam sınıflandırıcı. İngilizce e-posta veri setiyle Türkçe SMS veri setini birleştirip TF-IDF + Logistic Regression modeli eğittim; üstüne bir FastAPI uç noktası ve basit bir Streamlit sayfası ekledim.
 
-Metin sınıflandırmayı öğrenmek için yaptığım bir proje, o yüzden model bilerek basit tutuldu. Benim için en ilginç kısım, modelin iki dilde ne kadar farklı davrandığını görmekti ([Sonuçlar](#sonuçlar)).
+Metin sınıflandırmayı öğrenmek için yaptığım bir proje, o yüzden model bilerek basit tutuldu. İlk önce Naive Bayes kullandım, İngilizce e-postalarda kötü çıktı (%54 spam recall); kelime + karakter n-gram'lı lineer modele geçince sorunun çoğu çözüldü ([Sonuçlar](#sonuçlar)).
 
 ### Dosyalar
 
@@ -148,7 +157,7 @@ python -m venv .venv
 pip install -r requirements.txt
 ```
 
-Repodaki `.pkl` dosyaları scikit-learn 1.8.0 ile kaydedildi. Sürüm uyarısı alırsanız modeli yeniden eğitin.
+Repodaki `.pkl` dosyaları scikit-learn 1.8.0 ile kaydedildi (vectorizer dosyası karakter n-gram'ları yüzünden ~7 MB). Sürüm uyarısı alırsanız modeli yeniden eğitin.
 
 ### Eğitim
 
@@ -158,7 +167,9 @@ Repodaki `.pkl` dosyaları scikit-learn 1.8.0 ile kaydedildi. Sürüm uyarısı 
 python main.py
 ```
 
-NLTK stop-word listelerini (İngilizce + Türkçe) indirir, %80/%20 bölmeyle (`random_state=42`) eğitir ve iki `*_bilingual.pkl` dosyasının üzerine yazar.
+NLTK stop-word listelerini (İngilizce + Türkçe) indirir, tekrar eden metinleri atar, %80/%20 bölmeyle (`random_state=42`) eğitir ve iki `*_bilingual.pkl` dosyasının üzerine yazar. Eğitim normal bir laptopta bir dakikadan kısa sürer, GPU gerekmez.
+
+Model: Logistic Regression (`C=10`, dengeli sınıf ağırlıkları), TF-IDF özellikleriyle: kelime 1–2'li + karakter 2–5'li n-gram'lar. Karakter n-gram'ları Türkçe ekleri ve yazım hatalı spam kelimelerini yakalamaya yardım ediyor.
 
 ### API'yi çalıştırma
 
@@ -180,7 +191,7 @@ curl -X POST http://127.0.0.1:8000/predict \
 {
   "prediction": "Spam",
   "email_text": "Tebrikler! 1000 TL hediye kazandiniz, hemen tiklayin",
-  "confidence": 99.52
+  "confidence": 98.49
 }
 ```
 
@@ -196,35 +207,42 @@ streamlit run frontend.py
 
 ### Sonuçlar
 
-Test kümesi: 2.096 mesaj (birleşik verinin %20'si). `P(spam) >= eşik` ise mesaj spam sayılır.
+Test kümesi: 2.087 mesaj (44 tekrar eden metin atıldıktan sonra birleşik verinin %20'si; 791 spam). `P(spam) >= eşik` ise mesaj spam sayılır.
 
 **Genel, eşiğe göre**
 
 | Eşik | Doğruluk | Spam precision | Spam recall | Spam F1 |
 |------|----------|----------------|-------------|---------|
-| 0.30 | 0.92 | 0.90 | 0.89 | 0.89 |
-| 0.50 | 0.93 | 0.98 | 0.83 | 0.90 |
-| 0.70 | 0.92 | 0.99 | 0.78 | 0.87 |
-| 0.85 | 0.90 | 1.00 | 0.73 | 0.85 |
+| 0.30 | 0.997 | 0.993 | 1.000 | 0.996 |
+| 0.50 | 0.998 | 0.999 | 0.996 | 0.998 |
+| 0.70 | 0.994 | 1.000 | 0.984 | 0.992 |
+| 0.85 | 0.985 | 1.000 | 0.961 | 0.980 |
 
 **Dile göre (eşik 0.5, API'nin varsayılanı)**
 
 | Dil | Test mesajı | Doğruluk | Spam precision | Spam recall | Spam F1 |
 |-----|-------------|----------|----------------|-------------|---------|
-| Türkçe (SMS) | 919 | 0.98 | 0.97 | 1.00 | 0.98 |
-| İngilizce (e-posta) | 1.177 | 0.89 | 1.00 | 0.54 | 0.70 |
+| Türkçe (SMS) | 947 | 0.999 | 0.998 | 1.000 | 0.999 |
+| İngilizce (e-posta) | 1.140 | 0.997 | 1.000 | 0.989 | 0.995 |
+
+**Naive Bayes ve Logistic Regression** (ilk modelim ve şimdiki; tekrar temizliğinden önce/sonra)
+
+| | Genel doğruluk | İngilizce spam recall |
+|---|---|---|
+| TF-IDF + Naive Bayes (ilk sürüm) | 0.93 | 0.54 |
+| TF-IDF (kelime + karakter n-gram) + Logistic Regression | 0.998 | 0.989 |
 
 ### Sınırlılıklar
 
-- **İngilizce spam recall'ı düşük (0.54).** Model iyi İngilizce e-postaları neredeyse hiç spam işaretlemiyor ama gerçek spam'in yaklaşık yarısını kaçırıyor. Sebeplerden biri sınıf dengesizliği (İngilizce e-postaların sadece ~%24'ü spam) ve e-postaların uzun/çeşitli olması. Eşiği düşürmek recall'ı artırır.
-- **İki veri seti çok farklı.** Kısa Türkçe SMS'ler uzun İngilizce e-postalardan çok daha kolay, bu yüzden genel doğruluk modeli olduğundan iyi gösteriyor. Dile göre tablo daha dürüst.
-- **Alan uyuşmazlığı.** İngilizce bir *SMS* ya da Türkçe bir *e-posta* modelin eğitildiği şeyin dışında; orada daha kötü sonuç bekleyin.
-- Naive Bayes + TF-IDF kelime sırasını ve bağlamı görmez ve eğitim verisi sabit olduğundan yeni dolandırıcılık tarzlarını tanımaz.
+- **Skorlar pratikte muhtemelen bu kadar iyi olmaz.** Rastgele bölmede ~%99,8, bu veri setlerinin kolay ve kalıpları belli olduğunu gösteriyor (mesela İngilizce e-postalar tek bir kaynaktan ve çok belirgin bir tarzda). Başka kaynaktan gelen mesajlarda bu skoru beklemeyin.
+- **Alan uyuşmazlığı.** İngilizce bir *SMS* ya da Türkçe bir *e-posta* modelin eğitildiği şeyin dışında; orada daha kötü sonuç bekleyin. Bunu ölçmedim.
+- **Güven skoru her zaman yüksek değil.** Yukarıdaki İngilizce örnek sadece %81 alıyor, `confidence`'ı kaba bir sinyal olarak görün.
+- TF-IDF kelimelerin anlamını görmez ve eğitim verisi sabit olduğundan yeni dolandırıcılık tarzlarını tanımaz.
 
 ### İleride yapılabilecekler
 
-- Eşiği dile göre seçmek veya dil başına ayrı model eğitmek
-- Logistic Regression / lineer SVM ya da çok dilli bir transformer denemek
+- Gerçekte ne kadar genelleştiğini görmek için başka kaynaktan veriyle test etmek
+- Çok dilli bir transformer deneyip karşılaştırmak
 - Daha yeni veri ve Türkçe e-posta verisi eklemek
 
 ### Veri setleri
