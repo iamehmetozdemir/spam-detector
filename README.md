@@ -99,8 +99,8 @@ Higher thresholds reduce false positives (better precision) at the cost of missi
 
 ### Datasets
 
-- **English:** [Spam email classification dataset `emails.csv`](https://www.kaggle.com/datasets) from Kaggle (5,728 e-mails, columns `text`, `spam`; 1,368 spam). It is about 9 MB and therefore excluded via `.gitignore`.
-- **Turkish:** `TurkishSMSCollection.csv` – Turkish SMS Collection (4,751 messages, `;`-separated, columns `Message`, `Group`, `GroupText`; 2,536 spam / 2,215 normal).
+- **English:** [Spam Email Dataset `emails.csv`](https://www.kaggle.com/datasets/jackksoncsie/spam-email-dataset) from Kaggle (jackksoncsie) (5,728 e-mails, columns `text`, `spam`; 1,368 spam). It is about 9 MB and therefore excluded via `.gitignore`.
+- **Turkish:** `TurkishSMSCollection.csv` – [Turkish SMS Collection](https://www.kaggle.com/datasets/onurkarasoy/turkish-sms-collection) (Kaggle, onurkarasoy) (4,751 messages, `;`-separated, columns `Message`, `Group`, `GroupText`; 2,536 spam / 2,215 normal).
 
 Please check each dataset's original license before redistributing.
 
@@ -191,7 +191,7 @@ Eşik yükseldikçe yanlış alarm azalır (precision artar) ama kaçan spam art
 
 ### Veri setleri
 
-- **İngilizce:** Kaggle'daki [`emails.csv` spam e-posta veri seti](https://www.kaggle.com/datasets) (5.728 e-posta, `text` ve `spam` sütunları; 1.368 spam). Yaklaşık 9 MB olduğu için `.gitignore` ile repo dışında bırakılmıştır.
-- **Türkçe:** `TurkishSMSCollection.csv` – Turkish SMS Collection (4.751 mesaj, `;` ayraçlı, `Message`, `Group`, `GroupText` sütunları; 2.536 spam / 2.215 normal).
+- **İngilizce:** Kaggle'daki [`emails.csv` spam e-posta veri seti](https://www.kaggle.com/datasets/jackksoncsie/spam-email-dataset) (jackksoncsie) (5.728 e-posta, `text` ve `spam` sütunları; 1.368 spam). Yaklaşık 9 MB olduğu için `.gitignore` ile repo dışında bırakılmıştır.
+- **Türkçe:** `TurkishSMSCollection.csv` – [Turkish SMS Collection](https://www.kaggle.com/datasets/onurkarasoy/turkish-sms-collection) (Kaggle, onurkarasoy) (4.751 mesaj, `;` ayraçlı, `Message`, `Group`, `GroupText` sütunları; 2.536 spam / 2.215 normal).
 
 Dağıtmadan önce her veri setinin özgün lisansını kontrol edin.
