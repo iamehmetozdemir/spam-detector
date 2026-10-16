@@ -15,7 +15,8 @@ if st.button("Analyze Message"):
     if email_text.strip():
         # FastAPI'ye istek atıyoruz
         try:
-            res = requests.post("http://127.0.0.1:8000/predict", json={"text": email_text})
+            res = requests.post("http://127.0.0.1:8000/predict", json={"text": email_text}, timeout=10)
+            res.raise_for_status()
             data = res.json()
             
             prediction = data["prediction"]
@@ -32,5 +33,7 @@ if st.button("Analyze Message"):
                 
         except requests.exceptions.ConnectionError:
             st.error("⚠️ Could not connect to the API. Make sure FastAPI (Uvicorn) is running in the background.")
+        except requests.exceptions.RequestException as e:
+            st.error(f"⚠️ The API returned an error: {e}")
     else:
             st.warning("Please enter some text before analyzing.")

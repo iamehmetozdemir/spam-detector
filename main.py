@@ -1,34 +1,41 @@
-import pandas as pd
-from sklearn.model_selection import train_test_split
-from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.naive_bayes import MultinomialNB
-from sklearn.metrics import classification_report
+from pathlib import Path
+
 import joblib
 import nltk
+import pandas as pd
 from nltk.corpus import stopwords
-import numpy as np
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.metrics import classification_report
+from sklearn.model_selection import train_test_split
+from sklearn.naive_bayes import MultinomialNB
 
-# 1. NLTK Stop words (İngilizce ve Türkçe birleşimi)
+BASE_DIR = Path(__file__).parent
+
+# 1. NLTK stop words (İngilizce + Türkçe birleşimi)
 nltk.download('stopwords')
 stop_words_en = set(stopwords.words('english'))
 stop_words_tr = set(stopwords.words('turkish'))
 combined_stop_words = list(stop_words_en.union(stop_words_tr))
 
-# 2. İngilizce Dataset (Kaggle emails.csv)
-df_en = pd.read_csv("emails.csv")
-df_en = df_en[['text', 'spam']]
+# 2. İngilizce dataset (Kaggle emails.csv)
+emails_path = BASE_DIR / "emails.csv"
+if not emails_path.exists():
+    raise SystemExit("emails.csv bulunamadı. README'deki Kaggle linkinden indirip proje köküne koyun.")
+df_en = pd.read_csv(emails_path)[['text', 'spam']]
+df_en['lang'] = 'EN'
 
-# 3. Türkçe Dataset (TurkishSMSCollection.csv)
-df_tr = pd.read_csv("TurkishSMSCollection.csv", sep=";")
+# 3. Türkçe dataset (TurkishSMSCollection.csv)
+df_tr = pd.read_csv(BASE_DIR / "TurkishSMSCollection.csv", sep=";")
 df_tr.rename(columns={'Message': 'text', 'GroupText': 'spam'}, inplace=True)
 df_tr['spam'] = df_tr['spam'].map({'Spam': 1, 'Normal': 0})
 df_tr = df_tr[['text', 'spam']]
+df_tr['lang'] = 'TR'
 
-# 4. Data Concatenation
+# 4. Birleştirme
 df_combined = pd.concat([df_en, df_tr], ignore_index=True)
 df_combined.dropna(inplace=True)
 
-# 5. Feature Extraction & Train/Test Split
+# 5. Feature extraction & train/test split
 X = df_combined['text']
 y = df_combined['spam']
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
@@ -37,11 +44,11 @@ vectorizer = TfidfVectorizer(stop_words=combined_stop_words)
 X_train_tfidf = vectorizer.fit_transform(X_train)
 X_test_tfidf = vectorizer.transform(X_test)
 
-# 6. Model Training
+# 6. Model eğitimi
 model = MultinomialNB()
 model.fit(X_train_tfidf, y_train)
 
-# 7. Confidence Score (Predict Proba) ve Threshold Metrikleri
+# 7. Confidence score (predict_proba) ve threshold metrikleri
 y_proba = model.predict_proba(X_test_tfidf)[:, 1]
 thresholds = [0.3, 0.5, 0.7, 0.85]
 
@@ -53,7 +60,18 @@ for t in thresholds:
     y_custom_pred = (y_proba >= t).astype(int)
     print(classification_report(y_test, y_custom_pred))
 
-# 8. Modeli Diske Kaydet
-joblib.dump(model, 'spam_model_bilingual.pkl')
-joblib.dump(vectorizer, 'tfidf_vectorizer_bilingual.pkl')
+# 8. Dile göre ayrı sonuçlar (threshold 0.5)
+print("\n==========================================")
+print("       DİLE GÖRE SONUÇLAR (threshold 0.5)")
+print("==========================================")
+y_pred = (y_proba >= 0.5).astype(int)
+test_langs = df_combined.loc[X_test.index, 'lang'].values
+for lang in ['EN', 'TR']:
+    mask = test_langs == lang
+    print(f"\n--- {lang} ({mask.sum()} test mesajı) ---")
+    print(classification_report(y_test[mask], y_pred[mask]))
+
+# 9. Modeli diske kaydet
+joblib.dump(model, BASE_DIR / 'spam_model_bilingual.pkl')
+joblib.dump(vectorizer, BASE_DIR / 'tfidf_vectorizer_bilingual.pkl')
 print("\n✅ İki dilli model (Bilingual) ve Vectorizer başarıyla diske kaydedildi.")
