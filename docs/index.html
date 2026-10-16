@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Bilingual Spam Detector – live demo</title>
+  <meta name="description" content="Try a Turkish + English spam classifier right in your browser. TF-IDF and Logistic Regression, no server.">
+  <style>
+    :root {
+      --bg: #0f1220; --card: #181c30; --line: #2a2f4a; --text: #e7e9f5; --muted: #9aa0c0;
+      --accent: #f5c542; --spam: #ef5b5b; --ham: #4cc38a;
+    }
+    @media (prefers-color-scheme: light) {
+      :root { --bg: #f4f5fb; --card: #ffffff; --line: #dcdfee; --text: #1b1e33; --muted: #5d6385; --accent: #b8860b; --spam: #d23c3c; --ham: #1f9d63; }
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); color: var(--text); font: 16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+    main { max-width: 720px; margin: 0 auto; padding: 28px 16px 56px; }
+    header { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+    h1 { font-size: 1.6rem; margin: 0 0 6px; }
+    .sub { color: var(--muted); margin: 0 0 22px; }
+    .lang { display: flex; gap: 4px; }
+    .lang button { background: transparent; color: var(--muted); border: 1px solid var(--line); border-radius: 8px; padding: 4px 10px; cursor: pointer; font: inherit; font-size: .85rem; }
+    .lang button[aria-pressed="true"] { color: var(--text); border-color: var(--accent); }
+    .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 18px; }
+    label { display: block; font-weight: 600; margin-bottom: 8px; }
+    textarea { width: 100%; min-height: 130px; resize: vertical; background: var(--bg); color: var(--text); border: 1px solid var(--line); border-radius: 10px; padding: 12px; font: inherit; }
+    textarea:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+    .examples { margin-top: 12px; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; color: var(--muted); font-size: .9rem; }
+    .examples button { background: transparent; color: var(--text); border: 1px solid var(--line); border-radius: 999px; padding: 4px 12px; cursor: pointer; font: inherit; font-size: .85rem; }
+    .examples button:hover { border-color: var(--accent); }
+    #result { margin-top: 18px; }
+    .verdict { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+    .verdict strong { font-size: 1.7rem; }
+    .verdict.spam strong { color: var(--spam); } .verdict.ham strong { color: var(--ham); }
+    .bar { position: relative; height: 12px; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; margin: 12px 0 4px; overflow: hidden; }
+    .bar > span { position: absolute; inset: 0 auto 0 0; background: linear-gradient(90deg, var(--ham), var(--accent), var(--spam)); }
+    .bar::after { content: ""; position: absolute; left: 50%; top: 0; bottom: 0; width: 2px; background: var(--text); opacity: .55; }
+    .scale { display: flex; justify-content: space-between; color: var(--muted); font-size: .8rem; }
+    h2 { font-size: 1rem; margin: 20px 0 8px; }
+    .chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 0; padding: 0; list-style: none; }
+    .chips li { border-radius: 999px; padding: 2px 10px; font-size: .88rem; border: 1px solid; }
+    .chips.spam li { color: var(--spam); border-color: var(--spam); }
+    .chips.ham li { color: var(--ham); border-color: var(--ham); }
+    .small { color: var(--muted); font-size: .85rem; }
+    .muted { color: var(--muted); }
+    footer { margin-top: 22px; color: var(--muted); font-size: .88rem; }
+    a { color: var(--accent); }
+    [hidden] { display: none !important; }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <div>
+      <h1 data-i18n="title">Bilingual Spam Detector</h1>
+      <p class="sub" data-i18n="sub"></p>
+    </div>
+    <div class="lang" role="group" aria-label="Language">
+      <button data-lang="en" aria-pressed="true">EN</button>
+      <button data-lang="tr" aria-pressed="false">TR</button>
+    </div>
+  </header>
+
+  <section class="card">
+    <label for="text" data-i18n="label">Message</label>
+    <textarea id="text" data-i18n-placeholder="placeholder" spellcheck="false"></textarea>
+    <div class="examples">
+      <span data-i18n="examples">Try an example:</span>
+      <button type="button" data-example="Congratulations! You won a free prize. Click here to claim now!" data-i18n="ex_en_spam">English spam</button>
+      <button type="button" data-example="Hi John, attached is the agenda for tomorrow's meeting. Let me know if the time works for you." data-i18n="ex_en_ham">English normal</button>
+      <button type="button" data-example="Tebrikler! 1000 TL hediye kazandiniz, hemen tiklayin" data-i18n="ex_tr_spam">Turkish spam</button>
+      <button type="button" data-example="Yarın akşam toplantı kaçta başlıyor?" data-i18n="ex_tr_ham">Turkish normal</button>
+    </div>
+
+    <div id="status" class="small muted" role="status" data-i18n="loading">Loading model…</div>
+
+    <div id="result" hidden aria-live="polite">
+      <div class="verdict" id="verdict"><strong id="label"></strong><span class="muted"><span data-i18n="prob">Spam probability</span>: <b id="pct"></b></span></div>
+      <div class="bar" aria-hidden="true"><span id="fill" style="width:0"></span></div>
+      <div class="scale"><span data-i18n="scale_ham">Not spam</span><span>50%</span><span data-i18n="scale_spam">Spam</span></div>
+
+      <div id="why">
+        <h2 data-i18n="why">Words that influenced the result</h2>
+        <p class="small" id="whyNote"></p>
+        <ul class="chips spam" id="spamWords" aria-label="Spam signals"></ul>
+        <ul class="chips ham" id="hamWords" aria-label="Normal-message signals" style="margin-top:8px"></ul>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <p data-i18n="how"></p>
+    <p><a href="https://github.com/iamehmetozdemir/spam-detector" data-i18n="source">Source code on GitHub</a></p>
+  </footer>
+</main>
+
+<script>
+"use strict";
+
+// ---------- texts ----------
+const I18N = {
+  en: {
+    title: "Bilingual Spam Detector",
+    sub: "Type or paste a message in Turkish or English. The trained model runs right here in your browser; nothing you type is sent anywhere.",
+    label: "Message", placeholder: "Type or paste a message…", examples: "Try an example:",
+    ex_en_spam: "English spam", ex_en_ham: "English normal", ex_tr_spam: "Turkish spam", ex_tr_ham: "Turkish normal",
+    loading: "Loading model…", failed: "The model could not be loaded. Try reloading the page.",
+    spam: "Spam", ham: "Not spam", prob: "Spam probability", scale_ham: "Not spam", scale_spam: "Spam",
+    why: "Words that influenced the result",
+    whyNote: "Red pushes towards spam, green towards a normal message. Pairs of words are included.",
+    none: "No known words found, so the model is mostly guessing.",
+    how: "How it works: TF-IDF features (words, word pairs and character n-grams) feed a Logistic Regression model. It is the same model as in the Python project, exported to JSON and re-implemented in JavaScript. It was trained on two public datasets (English e-mails and Turkish SMS), so it can be wrong, especially on other kinds of text.",
+    source: "Source code on GitHub",
+  },
+  tr: {
+    title: "İki Dilli Spam Dedektörü",
+    sub: "Türkçe ya da İngilizce bir mesaj yaz veya yapıştır. Eğitilmiş model doğrudan tarayıcında çalışır; yazdığın hiçbir şey bir yere gönderilmez.",
+    label: "Mesaj", placeholder: "Bir mesaj yaz veya yapıştır…", examples: "Bir örnek dene:",
+    ex_en_spam: "İngilizce spam", ex_en_ham: "İngilizce normal", ex_tr_spam: "Türkçe spam", ex_tr_ham: "Türkçe normal",
+    loading: "Model yükleniyor…", failed: "Model yüklenemedi. Sayfayı yenilemeyi dene.",
+    spam: "Spam", ham: "Spam değil", prob: "Spam olasılığı", scale_ham: "Spam değil", scale_spam: "Spam",
+    why: "Sonucu etkileyen kelimeler",
+    whyNote: "Kırmızı spam'e, yeşil normal mesaja doğru iter. Kelime çiftleri de dahil.",
+    none: "Bilinen kelime bulunamadı, model çoğunlukla tahmin yürütüyor.",
+    how: "Nasıl çalışır: TF-IDF özellikleri (kelimeler, kelime çiftleri ve karakter n-gram'ları) bir Logistic Regression modeline girer. Python projesindeki modelin aynısı; JSON'a aktarılıp JavaScript'te yeniden yazıldı. İki açık veri setiyle (İngilizce e-posta ve Türkçe SMS) eğitildi, bu yüzden özellikle farklı türde metinlerde yanılabilir.",
+    source: "Kaynak kod GitHub'da",
+  },
+};
+
+let lang = "en";
+function applyLang(next) {
+  lang = next;
+  document.documentElement.lang = next;
+  const t = I18N[next];
+  document.querySelectorAll("[data-i18n]").forEach(el => { if (t[el.dataset.i18n] != null) el.textContent = t[el.dataset.i18n]; });
+  document.querySelectorAll("[data-i18n-placeholder]").forEach(el => { el.placeholder = t[el.dataset.i18nPlaceholder]; });
+  document.querySelectorAll(".lang button").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.lang === next)));
+  try { localStorage.setItem("lang", next); } catch (e) {}
+  if (model) render();
+}
+
+// ---------- the model (a JavaScript port of the scikit-learn pipeline) ----------
+let model = null, stopWords, wordIndex, charIndex;
+
+// Same as sklearn's token_pattern r"(?u)\b\w\w+\b": runs of 2+ word characters.
+const WORD = /[\p{L}\p{N}_]{2,}/gu;
+
+function wordFeatures(text) {
+  const tokens = (text.toLowerCase().match(WORD) || []).filter(w => !stopWords.has(w));
+  const out = tokens.slice();
+  for (let i = 0; i + 1 < tokens.length; i++) out.push(tokens[i] + " " + tokens[i + 1]);
+  return out;
+}
+
+// Same as sklearn's analyzer="char_wb" with ngram_range=(2, 5).
+function charFeatures(text) {
+  const out = [];
+  for (const word of text.toLowerCase().replace(/\s\s+/g, " ").split(/\s+/).filter(Boolean)) {
+    const w = Array.from(" " + word + " ");
+    for (let n = 2; n <= 5; n++) {
+      let offset = 0;
+      out.push(w.slice(0, n).join(""));
+      while (offset + n < w.length) { offset++; out.push(w.slice(offset, offset + n).join("")); }
+      if (offset === 0) break; // a short word is counted only once
+    }
+  }
+  return out;
+}
+
+// sublinear TF * IDF, then L2-normalised. Returns [featureIndex, value] pairs.
+function tfidf(features, index, idf) {
+  const counts = new Map();
+  for (const f of features) {
+    const i = index.get(f);
+    if (i !== undefined) counts.set(i, (counts.get(i) || 0) + 1);
+  }
+  let norm = 0;
+  const pairs = [];
+  for (const [i, tf] of counts) {
+    const v = (1 + Math.log(tf)) * idf[i];
+    pairs.push([i, v]);
+    norm += v * v;
+  }
+  norm = Math.sqrt(norm);
+  return norm === 0 ? [] : pairs.map(([i, v]) => [i, v / norm]);
+}
+
+function classify(text) {
+  const word = tfidf(wordFeatures(text), wordIndex, model.word.idf);
+  const char = tfidf(charFeatures(text), charIndex, model.char.idf);
+
+  let score = model.intercept;
+  const contributions = [];
+  for (const [i, v] of word) {
+    const c = model.word_coef[i] * v;
+    score += c;
+    contributions.push({ term: model.word.terms[i], value: c });
+  }
+  for (const [i, v] of char) score += model.char_coef[i] * v;
+
+  return { spam: 1 / (1 + Math.exp(-score)), contributions };
+}
+window.classify = classify; // handy for testing in the console
+
+// ---------- UI ----------
+const $ = id => document.getElementById(id);
+let last = null;
+
+function render() {
+  const text = $("text").value;
+  if (!model || !text.trim()) { $("result").hidden = true; last = null; return; }
+
+  last = classify(text);
+  const t = I18N[lang];
+  const isSpam = last.spam >= 0.5;
+
+  $("result").hidden = false;
+  $("verdict").className = "verdict " + (isSpam ? "spam" : "ham");
+  $("label").textContent = isSpam ? t.spam : t.ham;
+  $("pct").textContent = (last.spam * 100).toFixed(1) + "%";
+  $("fill").style.width = (last.spam * 100) + "%";
+
+  const sorted = last.contributions.slice().sort((a, b) => b.value - a.value);
+  const spamWords = sorted.filter(c => c.value > 0.005).slice(0, 8);
+  const hamWords = sorted.filter(c => c.value < -0.005).slice(-8).reverse();
+  const fill = (ul, items) => { ul.replaceChildren(...items.map(c => { const li = document.createElement("li"); li.textContent = c.term; return li; })); };
+  fill($("spamWords"), spamWords);
+  fill($("hamWords"), hamWords);
+  $("whyNote").textContent = last.contributions.length ? t.whyNote : t.none;
+}
+
+let timer;
+$("text").addEventListener("input", () => { clearTimeout(timer); timer = setTimeout(render, 120); });
+document.querySelectorAll("[data-example]").forEach(b => b.addEventListener("click", () => { $("text").value = b.dataset.example; render(); }));
+document.querySelectorAll(".lang button").forEach(b => b.addEventListener("click", () => applyLang(b.dataset.lang)));
+
+let saved = null;
+try { saved = localStorage.getItem("lang"); } catch (e) {}
+applyLang(saved || ((navigator.language || "").toLowerCase().startsWith("tr") ? "tr" : "en"));
+
+fetch("model.json")
+  .then(r => { if (!r.ok) throw new Error(r.status); return r.json(); })
+  .then(m => {
+    model = m;
+    stopWords = new Set(m.stop_words);
+    wordIndex = new Map(m.word.terms.map((t, i) => [t, i]));
+    charIndex = new Map(m.char.terms.map((t, i) => [t, i]));
+    $("status").hidden = true;
+    render();
+  })
+  .catch(() => { $("status").textContent = I18N[lang].failed; });
+</script>
+</body>
+</html>

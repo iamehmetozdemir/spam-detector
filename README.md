@@ -2,6 +2,8 @@
 
 [🇬🇧 English](#english) · [🇹🇷 Türkçe](#türkçe)
 
+### 🔎 [Try it live in your browser](https://iamehmetozdemir.github.io/spam-detector/) · [Tarayıcıda canlı dene](https://iamehmetozdemir.github.io/spam-detector/)
+
 ![Streamlit UI](docs/screenshot.png)
 
 ---
@@ -19,6 +21,8 @@ It started as a learning project for text classification, so the model is intent
 | `main.py` | Loads both datasets, trains the model, prints metrics, saves the `.pkl` files |
 | `api.py` | FastAPI app with `POST /predict` |
 | `frontend.py` | Streamlit UI that talks to the API |
+| `docs/` | Live demo for GitHub Pages: the same model running in the browser (`index.html` + `model.json`) |
+| `export_web_model.py` | Exports the trained model to `docs/model.json` for the demo |
 | `TurkishSMSCollection.csv` | Turkish SMS data (included) |
 | `emails.csv` | English e-mail data (not included, ~9 MB, download it, see [Datasets](#datasets)) |
 | `*_bilingual.pkl` | Trained model + vectorizer, so you can run the API without training |
@@ -72,6 +76,10 @@ curl -X POST http://127.0.0.1:8000/predict \
 ```
 
 `confidence` is the model's probability (in %) for the predicted class.
+
+### Live demo (no server)
+
+The page in `docs/` runs the model entirely in the browser, so it works on GitHub Pages. `export_web_model.py` writes the trained TF-IDF vocabulary and the logistic regression weights to `docs/model.json`, and `docs/index.html` re-implements the vectorizer and the classifier in JavaScript. I checked it against the Python model on 252 messages (including emoji, the Turkish İ and empty input): the largest difference in probability was about 2·10⁻⁷ and no message changed label. After retraining, run `python export_web_model.py` to refresh the demo.
 
 ### Run the UI
 
@@ -143,6 +151,8 @@ Metin sınıflandırmayı öğrenmek için yaptığım bir proje, o yüzden mode
 | `main.py` | İki veri setini yükler, modeli eğitir, metrikleri yazar, `.pkl` dosyalarını kaydeder |
 | `api.py` | `POST /predict` sunan FastAPI uygulaması |
 | `frontend.py` | API ile konuşan Streamlit arayüzü |
+| `docs/` | GitHub Pages canlı demosu: aynı model tarayıcıda çalışır (`index.html` + `model.json`) |
+| `export_web_model.py` | Eğitilmiş modeli demo için `docs/model.json` olarak dışa aktarır |
 | `TurkishSMSCollection.csv` | Türkçe SMS verisi (repoda var) |
 | `emails.csv` | İngilizce e-posta verisi (repoda yok, ~9 MB, indirin, bkz. [Veri setleri](#veri-setleri)) |
 | `*_bilingual.pkl` | Eğitilmiş model + vectorizer; eğitmeden API'yi çalıştırabilirsiniz |
@@ -196,6 +206,10 @@ curl -X POST http://127.0.0.1:8000/predict \
 ```
 
 `confidence`, modelin tahmin ettiği sınıf için olasılığıdır (%).
+
+### Canlı demo (sunucusuz)
+
+`docs/` içindeki sayfa modeli tamamen tarayıcıda çalıştırır, bu yüzden GitHub Pages'te çalışır. `export_web_model.py` eğitilmiş TF-IDF sözlüğünü ve logistic regression ağırlıklarını `docs/model.json`'a yazar; `docs/index.html` vektörleştiriciyi ve sınıflandırıcıyı JavaScript'te yeniden yazar. Python modeliyle 252 mesajda karşılaştırdım (emoji, Türkçe İ ve boş metin dahil): olasılıktaki en büyük fark yaklaşık 2·10⁻⁷, hiçbir mesajın etiketi değişmedi. Yeniden eğitimden sonra demoyu yenilemek için `python export_web_model.py` çalıştır.
 
 ### Arayüz
 
