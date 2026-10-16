@@ -1,0 +1,12 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Large datasets (download separately, see README)
+emails.csv
+
+# Old single-language models (superseded by *_bilingual.pkl)
+spam_model.pkl
+tfidf_vectorizer.pkl
