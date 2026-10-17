@@ -1,5 +1,7 @@
 # Spam Detector (TR + EN)
 
+[![tests](https://github.com/iamehmetozdemir/spam-detector/actions/workflows/tests.yml/badge.svg)](https://github.com/iamehmetozdemir/spam-detector/actions/workflows/tests.yml)
+
 [English](#english) · [Türkçe](#türkçe)
 
 **Live demo:** https://iamehmetozdemir.github.io/spam-detector/
@@ -14,32 +16,47 @@ A spam classifier that works on Turkish and English messages. I made it while le
 
 ```bash
 pip install -r requirements.txt
-python main.py                  # train (needs emails.csv, see Datasets)
+python main.py                  # train: model selection + final test (needs emails.csv, see Datasets)
+python evaluate.py              # charts and error list in reports/
 uvicorn api:app --reload        # API on http://127.0.0.1:8000
 streamlit run frontend.py       # UI, needs the API running
 ```
 
-The trained model files are already in the repo, so you can skip the first step and start the API.
+The trained model files are already in the repo, so you can skip training and start the API.
 
 ```bash
 curl -X POST http://127.0.0.1:8000/predict -H "Content-Type: application/json" \
   -d '{"text": "Tebrikler! 1000 TL hediye kazandiniz, hemen tiklayin"}'
-# {"prediction":"Spam","email_text":"...","confidence":98.49}
+# {"prediction":"Spam","email_text":"...","confidence":99.24,"spam_probability":0.9924}
 ```
 
-### How well does it work?
+### How I trained and checked it
 
-On a 20% hold-out split (2,087 messages) the accuracy is about 99.8%. Per language: Turkish 0.999, English 0.997 (it catches 98.9% of English spam).
+1. The data (10,435 messages after removing duplicates) is split 80/20, keeping the share of each language and of spam the same on both sides.
+2. Models are compared **only on the training part** with 5-fold cross-validation: Naive Bayes and Logistic Regression, with and without character n-grams, a few settings each. The vectorizer is fit inside each fold, so nothing leaks between folds. Full table: [reports/model_selection.md](reports/model_selection.md).
+3. The best one (Logistic Regression, words + characters, C=10, CV F1 0.9955) is retrained on the whole training part and evaluated **once** on the test part.
 
-My first model was Naive Bayes. It got 93% overall and missed almost half of the English spam, so I switched to Logistic Regression with character n-grams, which fixed that.
+| Test set (2,087 messages) | Accuracy | Precision | Recall | F1 |
+|---|---|---|---|---|
+| All | 0.996 | 0.995 | 0.994 | 0.994 |
+| English e-mails | 0.995 | 0.989 | 0.989 | 0.989 |
+| Turkish SMS | 0.997 | 0.998 | 0.996 | 0.997 |
 
-Take the numbers with a grain of salt:
-- I compared models and picked settings using the same test split, so the real score is probably a bit lower.
-- Both datasets are fairly easy, and an English SMS or a Turkish e-mail is something the model has never seen.
+Things I found along the way:
+- My first model was Naive Bayes and it missed almost half of the English spam. Logistic Regression fixed that. Interestingly, adding character n-grams makes Naive Bayes *worse* (CV F1 0.97 → 0.94) while it makes Logistic Regression better.
+- The learning curve is still going up at the full training size, so more data would probably help a bit more ([reports/learning_curve.png](reports/learning_curve.png)).
+- The probabilities are well calibrated (Brier score 0.005, [reports/calibration.png](reports/calibration.png)), which matters because the API returns them as "confidence".
+- Only 9 test messages are wrong. Most missed spam is short and odd, and one Turkish "spam" looks like a normal invitation ([reports/errors.md](reports/errors.md)).
+
+Still, both datasets are fairly easy and come from one source each. An English SMS or a Turkish e-mail is something the model has never seen, so real-world accuracy would be lower.
 
 ### The browser demo
 
-GitHub Pages can't run Python, so `export_web_model.py` saves the vocabulary and weights to `docs/model.json` and `docs/index.html` redoes the vectorizer and the classifier in JavaScript. I checked it against the Python model on 252 messages and the probabilities match to about 0.0000002, with no label changes. Run `python export_web_model.py` after retraining to update it.
+GitHub Pages can't run Python, so `export_web_model.py` saves the vocabulary and weights to `docs/model.json`, and `docs/spam-model.js` redoes the vectorizer and the classifier in JavaScript. On all 2,096 test cases the JavaScript and Python probabilities match to about 0.0000003, with no label changes. A test runs the JavaScript in Node and checks this on every push. Run `python export_web_model.py` after retraining.
+
+### Tests
+
+`pip install -r requirements-dev.txt` and then `pytest`: API responses and input validation, that the exported weights reproduce the model, that the JavaScript port matches Python (if Node is installed), and the data split (if `emails.csv` is there). GitHub Actions runs them on every push.
 
 ### Datasets
 
@@ -56,26 +73,35 @@ Türkçe ve İngilizce mesajlarda çalışan bir spam sınıflandırıcı. Makin
 
 ```bash
 pip install -r requirements.txt
-python main.py                  # eğitim (emails.csv lazım, aşağıya bak)
+python main.py                  # eğitim: model seçimi + son test (emails.csv lazım)
+python evaluate.py              # grafikler ve hata listesi reports/ içine
 uvicorn api:app --reload        # API: http://127.0.0.1:8000
 streamlit run frontend.py       # arayüz, API açık olmalı
 ```
 
-Eğitilmiş model dosyaları repoda hazır, ilk adımı atlayıp direkt API'yi açabilirsin.
+Eğitilmiş model dosyaları repoda hazır, eğitimi atlayıp direkt API'yi açabilirsin.
 
-### Ne kadar iyi çalışıyor?
+### Nasıl eğittim ve kontrol ettim
 
-%20'lik test kümesinde (2.087 mesaj) doğruluk yaklaşık %99,8. Dile göre: Türkçe 0,999, İngilizce 0,997 (İngilizce spam'in %98,9'unu yakalıyor).
+1. Veri (tekrarlar atılınca 10.435 mesaj) %80/%20 bölünüyor; iki tarafta da dil ve spam oranları aynı kalıyor.
+2. Modeller **sadece eğitim kısmında** 5 katlı çapraz doğrulamayla karşılaştırılıyor: Naive Bayes ve Logistic Regression, karakter n-gram'lı ve n-gram'sız, birkaç farklı ayarla. Vektörleştirici her katın içinde eğitiliyor, yani katlar arasında bilgi sızmıyor. Tam tablo: [reports/model_selection.md](reports/model_selection.md).
+3. En iyisi (Logistic Regression, kelime + karakter, C=10, CV F1 0,9955) tüm eğitim kısmıyla yeniden eğitilip test kısmında **bir kez** değerlendiriliyor. Sonuçlar yukarıdaki tabloda: genel doğruluk 0,996, İngilizce F1 0,989, Türkçe F1 0,997.
 
-İlk modelim Naive Bayes'ti. Genelde %93 yaptı ve İngilizce spam'in neredeyse yarısını kaçırdı. Karakter n-gram'lı Logistic Regression'a geçince bu düzeldi.
+Yol boyunca bulduklarım:
+- İlk modelim Naive Bayes'ti ve İngilizce spam'in neredeyse yarısını kaçırıyordu, Logistic Regression bunu düzeltti. İlginç olan: karakter n-gram'ları Logistic Regression'ı iyileştirirken Naive Bayes'i *kötüleştiriyor* (CV F1 0,97 → 0,94).
+- Öğrenme eğrisi tam veri boyutunda hâlâ yükseliyor, yani daha fazla veri biraz daha işe yarar.
+- Olasılıklar iyi kalibre (Brier skoru 0,005). API bunları "confidence" olarak döndürdüğü için bu önemli.
+- Test kümesinde sadece 9 mesaj yanlış. Kaçan spam'lerin çoğu kısa ve tuhaf; bir Türkçe "spam" de normal bir davet gibi duruyor ([reports/errors.md](reports/errors.md)).
 
-Rakamlara biraz temkinli yaklaş:
-- Modelleri ve ayarları aynı test kümesinde karşılaştırıp seçtim, gerçek skor muhtemelen biraz daha düşük.
-- İki veri seti de oldukça kolay. İngilizce bir SMS ya da Türkçe bir e-posta modelin hiç görmediği bir şey.
+Yine de iki veri seti de oldukça kolay ve her biri tek kaynaktan. İngilizce bir SMS ya da Türkçe bir e-posta modelin hiç görmediği şeyler, gerçek hayatta doğruluk daha düşük olur.
 
 ### Tarayıcı demosu
 
-GitHub Pages Python çalıştıramıyor. O yüzden `export_web_model.py` sözlüğü ve ağırlıkları `docs/model.json`'a kaydediyor, `docs/index.html` de vektörleştiriciyi ve sınıflandırıcıyı JavaScript'te yeniden yapıyor. Python modeliyle 252 mesajda karşılaştırdım, olasılıklar yaklaşık 0,0000002 farkla aynı çıktı, hiçbir etiket değişmedi. Yeniden eğittikten sonra güncellemek için `python export_web_model.py` çalıştır.
+GitHub Pages Python çalıştıramıyor. O yüzden `export_web_model.py` sözlüğü ve ağırlıkları `docs/model.json`'a kaydediyor, `docs/spam-model.js` de vektörleştiriciyi ve sınıflandırıcıyı JavaScript'te yeniden yapıyor. Test kümesinin tamamında (2.096 örnek) JavaScript ve Python olasılıkları yaklaşık 0,0000003 farkla aynı, hiçbir etiket değişmiyor. Bir test JavaScript'i Node'da çalıştırıp bunu her push'ta kontrol ediyor.
+
+### Testler
+
+`pip install -r requirements-dev.txt`, sonra `pytest`: API yanıtları ve girdi kontrolü, dışa aktarılan ağırlıkların modeli birebir üretmesi, JavaScript sürümünün Python'la aynı sonucu vermesi (Node kuruluysa) ve veri bölme (`emails.csv` varsa). GitHub Actions her push'ta çalıştırıyor.
 
 ### Veri setleri
 
