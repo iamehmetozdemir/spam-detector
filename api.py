@@ -2,7 +2,7 @@ from pathlib import Path
 
 import joblib
 from fastapi import FastAPI
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 app = FastAPI(title="Spam Email Detection API")
 
@@ -17,22 +17,26 @@ except FileNotFoundError as e:
 
 
 class EmailRequest(BaseModel):
-    text: str
+    # Boş metin anlamsız, çok uzun metin de gereksiz yük
+    text: str = Field(min_length=1, max_length=20000)
+
+
+@app.get("/health")
+def health():
+    return {"status": "ok"}
 
 
 @app.post("/predict")
 def predict_spam(request: EmailRequest):
     text_tfidf = vectorizer.transform([request.text])
 
-    prediction = model.predict(text_tfidf)[0]
-    probabilities = model.predict_proba(text_tfidf)[0]
-
-    confidence = max(probabilities) * 100
-
-    label = "Spam" if prediction == 1 else "Not Spam"
+    spam_probability = float(model.predict_proba(text_tfidf)[0][1])
+    is_spam = spam_probability >= 0.5
 
     return {
-        "prediction": label,
+        "prediction": "Spam" if is_spam else "Not Spam",
         "email_text": request.text,
-        "confidence": round(confidence, 2)
+        # Tahmin edilen sınıfın olasılığı (%)
+        "confidence": round(max(spam_probability, 1 - spam_probability) * 100, 2),
+        "spam_probability": round(spam_probability, 4),
     }
