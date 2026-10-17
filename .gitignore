@@ -10,3 +10,6 @@ emails.csv
 # Old single-language models (superseded by *_bilingual.pkl)
 spam_model.pkl
 tfidf_vectorizer.pkl
+
+# Local test output
+.pytest_cache/
