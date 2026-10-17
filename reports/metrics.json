@@ -1,0 +1,61 @@
+{
+  "selected": {
+    "model": "Logistic Regression",
+    "features": "words + chars",
+    "setting": "C=10",
+    "cv_f1": 0.9955
+  },
+  "test": {
+    "all": {
+      "accuracy": 0.9957,
+      "precision": 0.9949,
+      "recall": 0.9936,
+      "f1": 0.9942,
+      "n": 2087
+    },
+    "EN": {
+      "accuracy": 0.9947,
+      "precision": 0.9891,
+      "recall": 0.9891,
+      "f1": 0.9891,
+      "n": 1139
+    },
+    "TR": {
+      "accuracy": 0.9968,
+      "precision": 0.998,
+      "recall": 0.996,
+      "f1": 0.997,
+      "n": 948
+    }
+  },
+  "thresholds": {
+    "0.3": {
+      "accuracy": 0.9933,
+      "precision": 0.9848,
+      "recall": 0.9974,
+      "f1": 0.9911,
+      "n": 2087
+    },
+    "0.5": {
+      "accuracy": 0.9957,
+      "precision": 0.9949,
+      "recall": 0.9936,
+      "f1": 0.9942,
+      "n": 2087
+    },
+    "0.7": {
+      "accuracy": 0.9938,
+      "precision": 0.9974,
+      "recall": 0.9859,
+      "f1": 0.9916,
+      "n": 2087
+    },
+    "0.85": {
+      "accuracy": 0.9871,
+      "precision": 0.9987,
+      "recall": 0.9666,
+      "f1": 0.9824,
+      "n": 2087
+    }
+  }
+}
